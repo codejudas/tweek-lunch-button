@@ -25,6 +25,8 @@ try {
 } catch (err) {
     users = {};
 }
+
+console.log('===Starting up===');
 console.log(`Num subscribed users ${Object.keys(users).length}`);
 
 app.use(bodyParser.json()); // support json POST bodies
