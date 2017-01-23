@@ -4,11 +4,12 @@
   "description": "Webserver component of tweek lunch button",
   "main": "./app.js",
   "scripts": {
+    "prestart": "echo 'Updating to latest version...' && git pull origin master && npm install",  
     "start": "node app.js",
     "clean": "rm -f users.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "twilions",
+  "author": "Twilions",
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.16.0",
