@@ -30,8 +30,6 @@ try {
     console.log('HTTPS Disabled.');
 }
 
-const app = express();
-
 var users;
 try {
     users = JSON.parse(fs.readFileSync(file));
@@ -40,6 +38,8 @@ try {
 }
 
 console.log(`Num subscribed users ${Object.keys(users).length}`);
+
+let app = express();
 
 app.use(bodyParser.json()); // support json POST bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support form encoded POST bodies
