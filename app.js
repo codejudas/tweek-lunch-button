@@ -1,4 +1,5 @@
 const express = require('express');
+const https = require('https');
 const fs = require('fs');
 const bodyParser = require('body-parser');
 
@@ -17,6 +18,18 @@ if (!accountSid || !authToken) {
     throw new Error('./config.json must contain twilio account sid and auth token.');
 }
 
+console.log('===Starting up===');
+let credentials = null;
+try {
+    credentials = {
+        key: fs.readFileSync('ssl/server.key', 'utf-8'),
+        cert: fs.readFileSync('ssl/server.crt', 'utf-8')
+    };
+    console.log('HTTPS Enabled.');
+} catch (err) {
+    console.log('HTTPS Disabled.');
+}
+
 const app = express();
 
 var users;
@@ -26,7 +39,6 @@ try {
     users = {};
 }
 
-console.log('===Starting up===');
 console.log(`Num subscribed users ${Object.keys(users).length}`);
 
 app.use(bodyParser.json()); // support json POST bodies
@@ -116,6 +128,9 @@ app.post('/lunch', (req, res) => {
     res.send('Notifying');
 });
 
+if (credentials) {
+    app = https.createServer(credentials, app);
+}
 app.listen(port, () => {
     console.log(`Listening on port ${port}...`);
 });
