@@ -39,9 +39,9 @@ app.post('/users', (req, res) => {
     console.log(`POST /users From:${req.body.From} Body: ${req.body.Body}`);
 
     let body = req.body.Body.toLowerCase()
-                            .split(':', 1)
+                            .split(':', 2)
                             .map((e) => { return e.trim(); });
-    if (body.length != 2) {
+    if (body.length !== 2) {
         res.send(`
             <Response>
                 <Message>Register by texting:\n[ldap username]: [comma separated list of channels to be notified on]</Message>
