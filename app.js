@@ -11,6 +11,7 @@ const file = './users.json';
 const config = JSON.parse(fs.readFileSync('./config.json'));
 const accountSid = config.accountSid;
 const authToken = config.authToken;
+const validChannels = ['sms', 'slack', 'android', 'ios'];
 
 if (!accountSid || !authToken) {
     throw new Error('./config.json must contain twilio account sid and auth token.');
@@ -33,39 +34,74 @@ app.post('/users', (req, res) => {
     /* 
      * Expects a text formatted as follows:
      * {identity}: sms, android, ios
-     * 
+     * {identity}: [unsubscribe|stop]
      */
     console.log(`POST /users From:${req.body.From} Body: ${req.body.Body}`);
 
-    let body = req.body.Body.split(':', 1);
+    let body = req.body.Body.toLowerCase()
+                            .split(':', 1)
+                            .map((e) => { return e.trim(); });
     if (body.length != 2) {
         res.send(`
             <Response>
-                <Message>Register by texting '[your ldap username]: [comma separated list of channels to be notified on]'</Message>
-                <Message>Supported channels are sms, android, ios, slack.\nExample: jdoe: sms, slack, ios</Message>
+                <Message>Register by texting:\n[ldap username]: [comma separated list of channels to be notified on]</Message>
+                <Message>Supported channels are ${validChannels.join(', ')}.\nEx: jdoe: sms, slack, ios</Message>
+                <Message>If you would like to unsubscribe text:\n[ldap username]: stop</Message>
             </Response>
         `);
         return;
     }
 
     let identity = body[0];
-    let channels = body[1];
-
-    let msg = `Thanks for signing up ${req.body.Body}. We'll let you know when lunch arrives.`;
-    if (users[req.body.From]) {
-        msg = `Looks like you are already registered as ${users[req.body.From]}. We'll let you know when lunch arrives.`;
+    if (body[1] === 'stop' || body[1] === 'unsubscribe') {
+        if (users[identity]) {
+            /* TODO: Hit notify API to delete bindings*/
+            delete users[identity];
+        }
+        res.send(`
+            <Response>
+                <Message>You have been unsubscribed, ${identity}</Message>
+            </Response>
+        `);
     } else {
-        users[req.body.From] = req.body.Body;
-        fs.writeFile(file, JSON.stringify(users), (err) => {
-            if (err) console.log('Unable to persist users...');
-        });
+        let channels = body[1].split(',')
+                              .map((e) => { return e.trim(); })
+                              .filter((e) => { return validChannels.includes(e); });
+
+        if (!channels.length) {
+            res.send(`
+                <Response>
+                    <Message>You must specify at least one valid channel</Message>
+                    <Message>Supported channels are ${validChannels}.\nEx: jdoe: sms, slack, ios</Message>
+                </Response>
+            `);
+            return;
+        }
+
+        let msg = `Thanks for signing up ${identity}. You're signed up to receive notifications on ${channels.join(', ')}.`;
+        if (users[identity]) {
+            msg = `Looks like you are already registered ${identity}.\nWe've updated your notification preferences to ${channels.join(', ')}.`;
+        } else {
+            users[identity] = {};
+            channels.forEach((channel) => {
+                if (channel === 'slack') {
+                    users[identity][channel] = 'https://www.slack.com/notifyme';
+                } else {
+                    users[identity][channel] = 'BSXXXXXXXXXXXXXXXXXXXXX';
+                }
+            });
+        }
+        res.send(`
+            <Response>
+                <Message>${msg}\nWe'll let you know when lunch arrives.</Message>
+            </Response>
+        `);
     }
 
-    res.send(`
-        <Response>
-            <Message>${msg}</Message>
-        </Response>
-    `);
+    /* Persist updated users */
+    fs.writeFile(file, JSON.stringify(users), (err) => {
+        if (err) console.log('Unable to persist users...');
+    });
 });
 
 app.get('/users', (req, res) => {
