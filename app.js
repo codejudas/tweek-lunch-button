@@ -2,7 +2,6 @@ const express = require('express');
 const fs = require('fs');
 const bodyParser = require('body-parser');
 
-
 if (!fs.existsSync('./config.json')) {
     throw new Error('App requires ./config.json to exist.');
 }
@@ -31,8 +30,26 @@ app.use(bodyParser.json()); // support json POST bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support form encoded POST bodies
 
 app.post('/users', (req, res) => {
-    console.log('POST /users');
-    console.log(`${req.body.From}: ${req.body.Body}`);
+    /* 
+     * Expects a text formatted as follows:
+     * {identity}: sms, android, ios
+     * 
+     */
+    console.log(`POST /users From:${req.body.From} Body: ${req.body.Body}`);
+
+    let body = req.body.Body.split(':', 1);
+    if (body.length != 2) {
+        res.send(`
+            <Response>
+                <Message>Register by texting '[your ldap username]: [comma separated list of channels to be notified on]'</Message>
+                <Message>Supported channels are sms, android, ios, slack.\nExample: jdoe: sms, slack, ios</Message>
+            </Response>
+        `);
+        return;
+    }
+
+    let identity = body[0];
+    let channels = body[1];
 
     let msg = `Thanks for signing up ${req.body.Body}. We'll let you know when lunch arrives.`;
     if (users[req.body.From]) {

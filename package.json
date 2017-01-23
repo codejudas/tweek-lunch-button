@@ -2,10 +2,15 @@
   "name": "tweek-lunch-button",
   "version": "1.0.0",
   "description": "Webserver component of tweek lunch button",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/efossier/tweek-lunch-button.git"
+  },
   "main": "./app.js",
   "scripts": {
-    "prestart": "echo 'Updating to latest version...' && git pull origin master && npm install",  
-    "start": "node app.js",
+    "prestart": "echo 'Updating to latest version...' && git pull origin master && npm install",
+    "start": "forever start app.js",
+    "stop": "forever stop app.js",
     "clean": "rm -f users.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,6 +18,7 @@
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.16.0",
-    "express": "^4.14.0"
+    "express": "^4.14.0",
+    "forever": "^0.15.3"
   }
 }
