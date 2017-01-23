@@ -2,11 +2,20 @@ const express = require('express');
 const fs = require('fs');
 const bodyParser = require('body-parser');
 
+
+if (!fs.existsSync('./config.json')) {
+    throw new Error('App requires ./config.json to exist.');
+}
+
 const port = process.env.PORT || 5000;
 const file = './users.json';
 const config = JSON.parse(fs.readFileSync('./config.json'));
 const accountSid = config.accountSid;
 const authToken = config.authToken;
+
+if (!accountSid || !authToken) {
+    throw new Error('./config.json must contain twilio account sid and auth token.');
+}
 
 const app = express();
 
