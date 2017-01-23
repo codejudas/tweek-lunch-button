@@ -72,7 +72,7 @@ app.post('/users', (req, res) => {
             res.send(`
                 <Response>
                     <Message>You must specify at least one valid channel</Message>
-                    <Message>Supported channels are ${validChannels}.\nEx: jdoe: sms, slack, ios</Message>
+                    <Message>Supported channels are ${validChannels.join(', ')}.\nEx: jdoe: sms, slack, ios</Message>
                 </Response>
             `);
             return;
