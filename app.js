@@ -128,7 +128,7 @@ app.get('/users', (req, res) => {
 app.post('/lunch', (req, res) => {
     console.log('POST /lunch');
     res.send('Notifying');
-    slack.notifyUser('efossier', 'Lunch has arrived!');
+    // slack.notifyUser('efossier', 'Lunch has arrived!');
 });
 
 if (credentials) {
