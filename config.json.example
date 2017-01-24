@@ -1,4 +1,5 @@
 {
-    "accountSid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    "authToken": "******************************"
+    "accountSid": "Twilio Account Sid",
+    "authToken": "Twilio Auth Token",
+    "slackToken": "Slack API Token"
 }

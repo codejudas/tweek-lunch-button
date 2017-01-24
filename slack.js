@@ -5,7 +5,7 @@ const config = JSON.parse(fs.readFileSync('./config.json'));
 const slackToken = config.slackToken;
 
 module.exports.notifyUser = function(username, message) {
-    console.log(`Slacking ${username} '${message}`);
+    console.log(`Slacking ${username} '${message}'`);
     const payload = {
         token: slackToken,
         channel: `@${username}`,
