@@ -15,7 +15,6 @@ const cater2meOrderBaseUrl = `https://cater2.me/clients/${clientId}/calendars/or
 
 class Cater2MeMenu {
     constructor(menuJsonResponse) {
-        console.log('Constructing');
         this.vendor = menuJsonResponse.vendor_name || 'unknown';
         this.vendorImage = menuJsonResponse.vendor_image_timeline_url || null;
         this.office = menuJsonResponse.office_name || 'unknown';

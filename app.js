@@ -11,6 +11,8 @@ const slack = require('./slack.js');
 const notify = require('./notify.js');
 const cater2me = require('./cater2me.js');
 
+const RegistrationCommand = require('./util.js').RegistrationCommand;
+
 if (!fs.existsSync('./config.json')) {
     throw new Error('App requires ./config.json to exist.');
 }
@@ -20,7 +22,6 @@ const file = './users.json';
 const config = JSON.parse(fs.readFileSync('./config.json'));
 const accountSid = config.accountSid;
 const authToken = config.authToken;
-const validChannels = ['sms', 'slack', 'android', 'ios'];
 
 if (!accountSid || !authToken) {
     throw new Error('./config.json must contain twilio account sid and auth token.');
@@ -84,66 +85,58 @@ app.use(bodyParser.urlencoded({ extended: true })); // support form encoded POST
 
 /* Endpoint to register a new user */
 app.post('/users', (req, res) => {
-    /* 
-     * Expects a text formatted as follows:
-     * {identity}: sms, android, ios
-     * {identity}: [unsubscribe|stop]
-     */
     console.log(`POST /users From:${req.body.From} Body: ${req.body.Body}`);
 
-    let body = req.body.Body.toLowerCase()
-                            .split(':', 2)
-                            .map((e) => { return e.trim(); });
-    if (body.length !== 2) {
+    let command = null;
+    try {
+        command = new RegistrationCommand(req.body.Body);
+    } catch (err) {
         res.send(`
             <Response>
                 <Message>Register by texting:\n[ldap username]: [comma separated list of channels to be notified on]</Message>
-                <Message>Supported channels are ${validChannels.join(', ')}.\nEx: jdoe: sms, slack, ios</Message>
+                <Message>Supported channels are ${RegistrationCommand.VALID_CHANNELS.join(', ')}.\nEx: jdoe: sms, slack, ios</Message>
                 <Message>If you would like to unsubscribe text:\n[ldap username]: stop</Message>
             </Response>
         `);
         return;
     }
 
-    let identity = body[0];
-    if (body[1] === 'stop' || body[1] === 'unsubscribe') {
-        if (users[identity]) {
+    if (command.isUnsubscribe) {
+        if (users[command.identity]) {
             /* TODO: Hit notify API to delete bindings*/
-            delete users[identity];
+            delete users[command.identity];
         }
         res.send(`
             <Response>
-                <Message>You have been unsubscribed, ${identity}</Message>
+                <Message>You have been unsubscribed, ${command.identity}</Message>
             </Response>
         `);
     } else {
-        let channels = body[1].split(',')
-                              .map((e) => { return e.trim(); })
-                              .filter((e) => { return validChannels.includes(e); });
-
-        if (!channels.length) {
+        if (!command.channels.length) {
             res.send(`
                 <Response>
                     <Message>You must specify at least one valid channel</Message>
-                    <Message>Supported channels are ${validChannels.join(', ')}.\nEx: jdoe: sms, slack, ios</Message>
+                    <Message>Supported channels are ${RegistrationCommand.VALID_CHANNELS.join(', ')}.\nEx: jdoe: sms, slack, ios</Message>
                 </Response>
             `);
             return;
         }
 
-        let msg = `Thanks for signing up ${identity}. You're signed up to receive notifications on ${channels.join(', ')}.`;
-        if (users[identity]) {
-            msg = `Looks like you are already registered ${identity}.\nWe've updated your notification preferences to ${channels.join(', ')}.`;
-        } else {
-            users[identity] = {};
-            channels.forEach((channel) => {
-                if (channel === 'slack') {
-                    users[identity][channel] = 'https://www.slack.com/notifyme';
-                } else {
-                    users[identity][channel] = 'BSXXXXXXXXXXXXXXXXXXXXX';
-                }
-            });
-        }
+        let msg = `Thanks for signing up ${command.identity}. You're signed up to receive notifications on ${command.channels.join(', ')}.`;
+        if (users[command.identity]) {
+            msg = `Looks like you are already registered ${command.identity}.\nWe've updated your notification preferences to ${command.channels.join(', ')}.`;
+        } 
+
+        /* Build new user object */
+        users[command.identity] = {};
+        command.channels.forEach((channel) => {
+            if (channel === 'slack') {
+                users[command.identity][channel] = 'https://www.slack.com/notifyme';
+            } else {
+                users[command.identity][channel] = 'BSXXXXXXXXXXXXXXXXXXXXX';
+            }
+        });
+
         res.send(`
             <Response>
                 <Message>${msg}\nWell let you know when lunch arrives.</Message>
