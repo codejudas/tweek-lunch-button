@@ -109,6 +109,11 @@ app.post('/users', (req, res) => {
     if (body[1] === 'stop' || body[1] === 'unsubscribe') {
         if (users[identity]) {
             /* TODO: Hit notify API to delete bindings*/
+            for (var bindType in users[identity]) {
+                if (bindType != "slack" && bindType != null) {
+                    notify.deleteBinding(users[identity][bindType]);  
+                }  
+            }
             delete users[identity];
         }
         res.send(`
@@ -134,13 +139,17 @@ app.post('/users', (req, res) => {
         let msg = `Thanks for signing up ${identity}. You're signed up to receive notifications on ${channels.join(', ')}.`;
         if (users[identity]) {
             msg = `Looks like you are already registered ${identity}.\nWe've updated your notification preferences to ${channels.join(', ')}.`;
+            //TODO: update user preference
         } else {
             users[identity] = {};
             channels.forEach((channel) => {
                 if (channel === 'slack') {
                     users[identity][channel] = 'https://www.slack.com/notifyme';
                 } else {
-                    users[identity][channel] = 'BSXXXXXXXXXXXXXXXXXXXXX';
+                    //TODO: Support android/ios alerts
+                    notify.addBinding(identity, "sms", req.body.From, [], function(data) {
+                      users[identity][channel] = data;
+                    });
                 }
             });
         }
@@ -166,9 +175,12 @@ app.get('/users', (req, res) => {
 /* Notify registered users lunch has arrived*/
 app.post('/lunch', (req, res) => {
     console.log('POST /lunch');
+    for (var u in users) {
+        console.log(`Notifying ${u}`);
+        notify.notifyUserByIdentity(u, "Lunch");
+    }
+
     res.send('Notifying');
-    // notify.testNotify();
-    // slack.notifyUser('efossier', 'Lunch has arrived!');
 });
 
 if (credentials) {

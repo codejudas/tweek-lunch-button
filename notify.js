@@ -16,26 +16,11 @@ const copilotServiceSid = config.copilotServiceSid;
 
 var client = new twilio(accountSid, authToken);
 var service = client.notify.v1.services(notifyServiceSid);
-//var service = client.notifications .v1.services(notifyServiceSid);
-
-function UserBindInfo(id, sms, slack, gcm, apn) {
-    identity = id;
-    smsBindSid = sms;
-    slackEndpoint = slack;
-    gcmBindSid = gcm;
-    apnBindSid = apn;
-}
-
-//read in all users from JSON file
-function getUsers() {
-    //TODO: hard coding is bad
-
-}
 
 module.exports.testNotify = function () {
   service.notifications.create({
     identity: 'test@twilio.com', 
-    body: 'Testing tests tesst',
+    body: 'Testing tests test',
     sms: JSON.stringify({
       from: copilotServiceSid 
     })
@@ -46,6 +31,62 @@ module.exports.testNotify = function () {
   });
 };
 
-module.exports.notifyUser = function(username, message) {
-
+//Right now only supports sms
+module.exports.notifyUserByIdentity = function(identity, message) {
+  service.notifications.create({
+    identity: identity, 
+    body: message,
+    sms: JSON.stringify({
+      from: copilotServiceSid
+    })
+  }).then(function(response) {
+    console.log(response);
+  }).catch(function(error) {
+    console.log(error);
+  });
 };
+
+module.exports.notifyUserByTag = function(tags, message) {
+	service.notifications.create({
+    tag: tags, 
+    body: message,
+    sms: JSON.stringify({
+      from: copilotServiceSid
+    })
+  }).then(function(response) {
+    console.log(response);
+  }).catch(function(error) {
+    console.log(error);
+  });
+};
+
+module.exports.addBinding = function(identity, bindType, bindAddress, tag, callback) {
+    console.log(`creating biding for ${identity}, ${bindType}`);
+    service.bindings.create({
+        endpoint: `${identity}:${bindType}`,
+        identity: identity,
+        bindingType: bindType,
+        address: bindAddress,
+        tag: tag
+    }).then(function(response) {
+        //get binding sid from response
+        var bindSid = response.sid;
+        console.log(bindSid);
+        callback(bindSid);
+    }).catch(function(error) {
+        console.log(error);
+        callback(null);
+    });
+}
+
+module.exports.deleteBinding = function(bindSid) {
+    console.log(`deleteBindind ${bindSid}`);
+    service.bindings(bindSid).remove()
+        .then(function(response) {
+            console.log(response);
+        }).catch(function(error) {
+        console.log(error);
+    });
+}
+
+
