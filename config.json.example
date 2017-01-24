@@ -1,5 +1,7 @@
 {
     "accountSid": "Twilio Account Sid",
     "authToken": "Twilio Auth Token",
-    "slackToken": "Slack API Token"
+    "slackToken": "Slack API Token",
+    "notifyServiceSid": "Twilio Notify Service Sid",
+    "copilotServiceSid": "MG SID"
 }
