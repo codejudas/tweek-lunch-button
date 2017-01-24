@@ -2,7 +2,9 @@ const express = require('express');
 const https = require('https');
 const fs = require('fs');
 const bodyParser = require('body-parser');
+const twilio = require('twilio');
 const slack = require('./slack.js');
+const notify = require('./notify.js');
 
 if (!fs.existsSync('./config.json')) {
     throw new Error('App requires ./config.json to exist.');
@@ -109,7 +111,7 @@ app.post('/users', (req, res) => {
         }
         res.send(`
             <Response>
-                <Message>${msg}\nWe'll let you know when lunch arrives.</Message>
+                <Message>${msg}\nWell let you know when lunch arrives.</Message>
             </Response>
         `);
     }
@@ -128,6 +130,7 @@ app.get('/users', (req, res) => {
 app.post('/lunch', (req, res) => {
     console.log('POST /lunch');
     res.send('Notifying');
+    // notify.testNotify();
     // slack.notifyUser('efossier', 'Lunch has arrived!');
 });
 
