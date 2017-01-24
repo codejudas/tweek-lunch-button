@@ -11,6 +11,8 @@ const slack = require('./slack.js');
 const notify = require('./notify.js');
 const cater2me = require('./cater2me.js');
 
+const RegistrationCommand = require('./util.js').RegistrationCommand;
+
 if (!fs.existsSync('./config.json')) {
     throw new Error('App requires ./config.json to exist.');
 }
@@ -20,13 +22,12 @@ const file = './users.json';
 const config = JSON.parse(fs.readFileSync('./config.json'));
 const accountSid = config.accountSid;
 const authToken = config.authToken;
-const validChannels = ['sms', 'slack', 'android', 'ios'];
 
 if (!accountSid || !authToken) {
     throw new Error('./config.json must contain twilio account sid and auth token.');
 }
 
-console.log('===Starting up===');
+console.log('\n===Starting up===');
 let credentials = null;
 /* Twilio does not accept self signed certificate */
 // try {
@@ -49,8 +50,8 @@ try {
 console.log(`Num subscribed users ${Object.keys(users).length}`);
 
 /* Load todays menu */
-var cater2meMenu = null;
-var cater2meMenuLoaded = null;
+var cater2MeMenu = null;
+var cater2MeMenuLoaded = null;
 
 console.log('Starting cater2me cron job...');
 var cater2MeCron = new cron.CronJob({
@@ -59,11 +60,11 @@ var cater2MeCron = new cron.CronJob({
     start: true,
     runOnInit: true,
     onTick: function() {
-        cater2meMenuLoaded = new Promise((resolve, reject) => {
+        cater2MeMenuLoaded = new Promise((resolve, reject) => {
             cater2me.loadTodaysMenu().then(
                 (res) => { 
-                    cater2meMenu = res; 
-                    console.log(`Got Cater2Me menu ${JSON.stringify(cater2meMenu)}`);
+                    cater2MeMenu = res;
+                    console.log(`Got Cater2Me menu ${cater2MeMenu}`);
                     return resolve(res);
                 },
                 (err) => {
@@ -84,75 +85,66 @@ app.use(bodyParser.urlencoded({ extended: true })); // support form encoded POST
 
 /* Endpoint to register a new user */
 app.post('/users', (req, res) => {
-    /* 
-     * Expects a text formatted as follows:
-     * {identity}: sms, android, ios
-     * {identity}: [unsubscribe|stop]
-     */
     console.log(`POST /users From:${req.body.From} Body: ${req.body.Body}`);
 
-    let body = req.body.Body.toLowerCase()
-                            .split(':', 2)
-                            .map((e) => { return e.trim(); });
-    if (body.length !== 2) {
+    let command = null;
+    try {
+        command = new RegistrationCommand(req.body.Body);
+    } catch (err) {
         res.send(`
             <Response>
                 <Message>Register by texting:\n[ldap username]: [comma separated list of channels to be notified on]</Message>
-                <Message>Supported channels are ${validChannels.join(', ')}.\nEx: jdoe: sms, slack, ios</Message>
+                <Message>Supported channels are ${RegistrationCommand.VALID_CHANNELS.join(', ')}.\nEx: jdoe: sms, slack, ios</Message>
                 <Message>If you would like to unsubscribe text:\n[ldap username]: stop</Message>
             </Response>
         `);
         return;
     }
 
-    let identity = body[0];
-    if (body[1] === 'stop' || body[1] === 'unsubscribe') {
-        if (users[identity]) {
+    if (command.isUnsubscribe) {
+        if (users[command.identity]) {
             /* TODO: Hit notify API to delete bindings*/
             for (var bindType in users[identity]) {
                 if (bindType != "slack" && bindType != null) {
-                    notify.deleteBinding(users[identity][bindType]);  
-                }  
+                    notify.deleteBinding(users[identity][bindType]);
+                }
             }
             delete users[identity];
         }
         res.send(`
             <Response>
-                <Message>You have been unsubscribed, ${identity}</Message>
+                <Message>You have been unsubscribed, ${command.identity}</Message>
             </Response>
         `);
     } else {
-        let channels = body[1].split(',')
-                              .map((e) => { return e.trim(); })
-                              .filter((e) => { return validChannels.includes(e); });
-
-        if (!channels.length) {
+        if (!command.channels.length) {
             res.send(`
                 <Response>
                     <Message>You must specify at least one valid channel</Message>
-                    <Message>Supported channels are ${validChannels.join(', ')}.\nEx: jdoe: sms, slack, ios</Message>
+                    <Message>Supported channels are ${RegistrationCommand.VALID_CHANNELS.join(', ')}.\nEx: jdoe: sms, slack, ios</Message>
                 </Response>
             `);
             return;
         }
 
-        let msg = `Thanks for signing up ${identity}. You're signed up to receive notifications on ${channels.join(', ')}.`;
-        if (users[identity]) {
-            msg = `Looks like you are already registered ${identity}.\nWe've updated your notification preferences to ${channels.join(', ')}.`;
-            //TODO: update user preference
-        } else {
-            users[identity] = {};
-            channels.forEach((channel) => {
-                if (channel === 'slack') {
-                    users[identity][channel] = 'https://www.slack.com/notifyme';
-                } else {
-                    //TODO: Support android/ios alerts
-                    notify.addBinding(identity, "sms", req.body.From, [], function(data) {
-                      users[identity][channel] = data;
-                    });
-                }
-            });
+        let msg = `Thanks for signing up ${command.identity}. You're signed up to receive notifications on ${command.channels.join(', ')}.`;
+        if (users[command.identity]) {
+            msg = `Looks like you are already registered ${command.identity}.\nWe've updated your notification preferences to ${command.channels.join(', ')}.`;
         }
+
+        /* Build new user object */
+        users[command.identity] = {};
+        command.channels.forEach((channel) => {
+            if (channel === 'slack') {
+                users[command.identity][channel] = 'https://www.slack.com/notifyme';
+            } else {
+              //TODO: Support android/ios alerts
+              notify.addBinding(identity, "sms", req.body.From, [], function(data) {
+                users[identity][channel] = data;
+              });
+            }
+        });
+
         res.send(`
             <Response>
                 <Message>${msg}\nWell let you know when lunch arrives.</Message>
@@ -179,7 +171,6 @@ app.post('/lunch', (req, res) => {
         console.log(`Notifying ${u}`);
         notify.notifyUserByIdentity(u, "Lunch");
     }
-
     res.send('Notifying');
 });
 
@@ -189,7 +180,7 @@ if (credentials) {
 
 /* Once all initialization is done, start server */
 console.log('Waiting for initialization to complete...');
-Promise.all([cater2meMenuLoaded])
+Promise.all([cater2MeMenuLoaded])
     .then((values) => {
         app.listen(port, () => {
             console.log(`Listening on port ${port}...`);
