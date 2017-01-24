@@ -26,7 +26,7 @@ if (!accountSid || !authToken) {
     throw new Error('./config.json must contain twilio account sid and auth token.');
 }
 
-console.log('===Starting up===');
+console.log('\n===Starting up===');
 let credentials = null;
 /* Twilio does not accept self signed certificate */
 // try {
@@ -49,8 +49,8 @@ try {
 console.log(`Num subscribed users ${Object.keys(users).length}`);
 
 /* Load todays menu */
-var cater2meMenu = null;
-var cater2meMenuLoaded = null;
+var cater2MeMenu = null;
+var cater2MeMenuLoaded = null;
 
 console.log('Starting cater2me cron job...');
 var cater2MeCron = new cron.CronJob({
@@ -59,11 +59,11 @@ var cater2MeCron = new cron.CronJob({
     start: true,
     runOnInit: true,
     onTick: function() {
-        cater2meMenuLoaded = new Promise((resolve, reject) => {
+        cater2MeMenuLoaded = new Promise((resolve, reject) => {
             cater2me.loadTodaysMenu().then(
                 (res) => { 
-                    cater2meMenu = res; 
-                    console.log(`Got Cater2Me menu ${JSON.stringify(cater2meMenu)}`);
+                    cater2MeMenu = res; 
+                    console.log(`Got Cater2Me menu ${cater2MeMenu}`);
                     return resolve(res);
                 },
                 (err) => {
@@ -177,7 +177,7 @@ if (credentials) {
 
 /* Once all initialization is done, start server */
 console.log('Waiting for initialization to complete...');
-Promise.all([cater2meMenuLoaded])
+Promise.all([cater2MeMenuLoaded])
     .then((values) => {
         app.listen(port, () => {
             console.log(`Listening on port ${port}...`);

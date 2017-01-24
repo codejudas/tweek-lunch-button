@@ -13,6 +13,28 @@ const profileIds = JSON.parse(fs.readFileSync('./config.json')).cater2me.profile
 const cater2meOrdersUrl = `https://cater2.me/clients/${clientId}/calendars/orders_feed.json?cal_by_profile_ids=${encodeURIComponent(profileIds.join(','))}&cal_sort_by=order_for&cal_by_user_id=${userId}`;
 const cater2meOrderBaseUrl = `https://cater2.me/clients/${clientId}/calendars/order_details.json?order_id=`;
 
+class Cater2MeMenu {
+    constructor(menuJsonResponse) {
+        console.log('Constructing');
+        this.vendor = menuJsonResponse.vendor_name || 'unknown';
+        this.vendorImage = menuJsonResponse.vendor_image_timeline_url || null;
+        this.office = menuJsonResponse.office_name || 'unknown';
+        this.menuItems = (menuJsonResponse.menu_items || []).map((item) => {
+            var item_notes = item.item_notes ? ` (${item.item_notes})` : '';
+            return {
+                item: `${item.item_display_name}${item_notes}`,
+                description: item.item_description
+            }
+        });
+    }
+
+    toString() {
+        return `Cater2MeMenu { vendor: ${this.vendor}, office: ${this.office}, menuItems: ${this.menuItems.map((e) => {return e.item;}).join(', ')} }`
+    }
+}
+
+module.exports.Cater2MeMenu = Cater2MeMenu;
+
 module.exports.loadTodaysMenu = function() {
     let today = new Date();
     return new Promise((resolve, reject) => {
@@ -37,18 +59,7 @@ module.exports.loadTodaysMenu = function() {
                 let menu = JSON.parse(body).order;
                 if (!menu) { return reject(Error(`No menu found for order ${order.id}.`)); }
 
-                let output = {
-                    vendor: menu.vendor_name,
-                    vendorImage: menu.vendor_image_timeline_url,
-                    office: menu.office_name,
-                    menu: menu.menu_items.map((item) => {
-                        var item_notes = item.item_notes ? ` (${item.item_notes})` : '';
-                        return {
-                            item: `${item.item_display_name}${item_notes}`,
-                            description: item.item_description
-                        }
-                    })
-                };
+                let output = new Cater2MeMenu(menu);
                 resolve(output);
             });
         });
