@@ -2,6 +2,7 @@ const express = require('express');
 const https = require('https');
 const fs = require('fs');
 const bodyParser = require('body-parser');
+const slack = require('./slack.js');
 
 if (!fs.existsSync('./config.json')) {
     throw new Error('App requires ./config.json to exist.');
@@ -127,6 +128,7 @@ app.get('/users', (req, res) => {
 app.post('/lunch', (req, res) => {
     console.log('POST /lunch');
     res.send('Notifying');
+    slack.notifyUser('efossier', 'Lunch has arrived!');
 });
 
 if (credentials) {
