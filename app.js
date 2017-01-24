@@ -1,10 +1,15 @@
+'use strict';
+
 const express = require('express');
 const https = require('https');
 const fs = require('fs');
 const bodyParser = require('body-parser');
 const twilio = require('twilio');
+const cron = require('cron');
+
 const slack = require('./slack.js');
 const notify = require('./notify.js');
+const cater2me = require('./cater2me.js');
 
 if (!fs.existsSync('./config.json')) {
     throw new Error('App requires ./config.json to exist.');
@@ -34,20 +39,50 @@ let credentials = null;
 //     console.log('HTTPS Disabled.');
 // }
 
+/* Read registered users */
 var users;
 try {
     users = JSON.parse(fs.readFileSync(file));
 } catch (err) {
     users = {};
 }
-
 console.log(`Num subscribed users ${Object.keys(users).length}`);
 
+/* Load todays menu */
+var cater2meMenu = null;
+var cater2meMenuLoaded = null;
+
+console.log('Starting cater2me cron job...');
+var cater2MeCron = new cron.CronJob({
+    cronTime: '0 8 * * 1-5', /* Run at 8am PST every day Mon-Fri */
+    timeZone: 'America/Los_Angeles',
+    start: true,
+    runOnInit: true,
+    onTick: function() {
+        cater2meMenuLoaded = new Promise((resolve, reject) => {
+            cater2me.loadTodaysMenu().then(
+                (res) => { 
+                    cater2meMenu = res; 
+                    console.log(`Got Cater2Me menu ${JSON.stringify(cater2meMenu)}`);
+                    return resolve(res);
+                },
+                (err) => {
+                    console.log(`Failed to load Cater2Me menu: ${err}`);
+                    return reject(err);
+                }
+            );
+        });
+    },
+    onComplete: function() { console.log('Stopping cater2me cron job'); }
+});
+
+/* Setup web server */
 let app = express();
 
 app.use(bodyParser.json()); // support json POST bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support form encoded POST bodies
 
+/* Endpoint to register a new user */
 app.post('/users', (req, res) => {
     /* 
      * Expects a text formatted as follows:
@@ -122,11 +157,13 @@ app.post('/users', (req, res) => {
     });
 });
 
+/* List users */
 app.get('/users', (req, res) => {
     console.log('GET /users');
     res.send(users);
 });
 
+/* Notify registered users lunch has arrived*/
 app.post('/lunch', (req, res) => {
     console.log('POST /lunch');
     res.send('Notifying');
@@ -137,7 +174,15 @@ app.post('/lunch', (req, res) => {
 if (credentials) {
     app = https.createServer(credentials, app);
 }
-app.listen(port, () => {
-    console.log(`Listening on port ${port}...`);
-});
 
+/* Once all initialization is done, start server */
+console.log('Waiting for initialization to complete...');
+Promise.all([cater2meMenuLoaded])
+    .then((values) => {
+        app.listen(port, () => {
+            console.log(`Listening on port ${port}...`);
+        });
+    }, (err) => {
+        console.log('Failed to initialize web server'); 
+        throw err;
+    });

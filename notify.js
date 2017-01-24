@@ -1,6 +1,8 @@
 /**
  * Created by jlaver on 1/23/17.
  */
+'use strict';
+
 const express = require('express');
 const fs = require('fs');
 const bodyParser = require('body-parser');
