@@ -20,15 +20,16 @@ if (!accountSid || !authToken) {
 
 console.log('===Starting up===');
 let credentials = null;
-try {
-    credentials = {
-        key: fs.readFileSync('ssl/server.key', 'utf-8'),
-        cert: fs.readFileSync('ssl/server.crt', 'utf-8')
-    };
-    console.log('HTTPS Enabled.');
-} catch (err) {
-    console.log('HTTPS Disabled.');
-}
+/* Twilio does not accept self signed certificate */
+// try {
+//     credentials = {
+//         key: fs.readFileSync('ssl/server.key', 'utf-8'),
+//         cert: fs.readFileSync('ssl/server.crt', 'utf-8')
+//     };
+//     console.log('HTTPS Enabled.');
+// } catch (err) {
+//     console.log('HTTPS Disabled.');
+// }
 
 var users;
 try {
