@@ -6,6 +6,8 @@ const fs = require('fs');
 const bodyParser = require('body-parser');
 const twilio = require('twilio');
 const cron = require('cron');
+const morgan = require('morgan');
+const log4js = require('log4js');
 
 const slack = require('./slack.js');
 const notify = require('./notify.js');
@@ -13,21 +15,16 @@ const cater2me = require('./cater2me.js');
 
 const RegistrationCommand = require('./util.js').RegistrationCommand;
 
-if (!fs.existsSync('./config.json')) {
-    throw new Error('App requires ./config.json to exist.');
-}
-
 const port = process.env.PORT || 5000;
 const file = './users.json';
 const config = JSON.parse(fs.readFileSync('./config.json'));
 const accountSid = config.accountSid;
 const authToken = config.authToken;
+const logger = log4js.getLogger('app');
 
-if (!accountSid || !authToken) {
-    throw new Error('./config.json must contain twilio account sid and auth token.');
-}
+process.on('SIGTERM', () => { logger.warn('Received SIGTERM, shutting down...'); process.exit(0); });
 
-console.log('\n===Starting up===');
+logger.warn('Starting up...');
 let credentials = null;
 /* Twilio does not accept self signed certificate */
 // try {
@@ -35,9 +32,9 @@ let credentials = null;
 //         key: fs.readFileSync('ssl/server.key', 'utf-8'),
 //         cert: fs.readFileSync('ssl/server.crt', 'utf-8')
 //     };
-//     console.log('HTTPS Enabled.');
+//     logger.info('HTTPS Enabled.');
 // } catch (err) {
-//     console.log('HTTPS Disabled.');
+//     logger.info('HTTPS Disabled.');
 // }
 
 /* Read registered users */
@@ -47,13 +44,13 @@ try {
 } catch (err) {
     users = {};
 }
-console.log(`Num subscribed users ${Object.keys(users).length}`);
+logger.info(`Num subscribed users ${Object.keys(users).length}`);
 
 /* Load todays menu */
 var cater2MeMenu = null;
 var cater2MeMenuLoaded = null;
 
-console.log('Starting cater2me cron job...');
+logger.info('Starting cater2me cron job...');
 var cater2MeCron = new cron.CronJob({
     cronTime: '0 8 * * 1-5', /* Run at 8am PST every day Mon-Fri */
     timeZone: 'America/Los_Angeles',
@@ -64,17 +61,17 @@ var cater2MeCron = new cron.CronJob({
             cater2me.loadTodaysMenu().then(
                 (res) => { 
                     cater2MeMenu = res;
-                    console.log(`Got Cater2Me menu ${cater2MeMenu}`);
+                    logger.info(`Got Cater2Me menu ${cater2MeMenu}`);
                     return resolve(res);
                 },
                 (err) => {
-                    console.log(`Failed to load Cater2Me menu: ${err}`);
+                    logger.warn(`Failed to load Cater2Me menu: ${err}`);
                     return reject(err);
                 }
             );
         });
     },
-    onComplete: function() { console.log('Stopping cater2me cron job'); }
+    onComplete: function() { logger.info('Stopping cater2me cron job'); }
 });
 
 /* Setup web server */
@@ -85,7 +82,7 @@ app.use(bodyParser.urlencoded({ extended: true })); // support form encoded POST
 
 /* Endpoint to register a new user */
 app.post('/users', (req, res) => {
-    console.log(`POST /users From:${req.body.From} Body: ${req.body.Body}`);
+    logger.info(`POST /users From:${req.body.From} Body: ${req.body.Body}`);
 
     let command = null;
     try {
@@ -154,21 +151,21 @@ app.post('/users', (req, res) => {
 
     /* Persist updated users */
     fs.writeFile(file, JSON.stringify(users), (err) => {
-        if (err) console.log('Unable to persist users...');
+        if (err) logger.warn('Unable to persist users...');
     });
 });
 
 /* List users */
 app.get('/users', (req, res) => {
-    console.log('GET /users');
+    logger.info('GET /users');
     res.send(users);
 });
 
 /* Notify registered users lunch has arrived*/
 app.post('/lunch', (req, res) => {
-    console.log('POST /lunch');
+    logger.info('POST /lunch');
     for (var u in users) {
-        console.log(`Notifying ${u}`);
+        logger.info(`Notifying ${u}`);
         notify.notifyUserByIdentity(u, "Lunch");
         if (users[u].slack) {
             slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu.toSlackAttachment()]);
@@ -182,13 +179,13 @@ if (credentials) {
 }
 
 /* Once all initialization is done, start server */
-console.log('Waiting for initialization to complete...');
+logger.info('Waiting for initialization to complete...');
 Promise.all([cater2MeMenuLoaded])
     .then((values) => {
         app.listen(port, () => {
-            console.log(`Listening on port ${port}...`);
+            logger.info(`Listening on port ${port}...`);
         });
     }, (err) => {
-        console.log('Failed to initialize web server'); 
+        logger.error('Failed to initialize web server'); 
         throw err;
     });

@@ -2,6 +2,7 @@
 
 const request = require('request');
 const fs = require('fs');
+const log4js = require('log4js');
 
 /* Get this from client_guid field of https://cater2.me/clients/users/available_profiles.json */
 const clientId = JSON.parse(fs.readFileSync('./config.json')).cater2me.clientId;
@@ -9,6 +10,7 @@ const clientId = JSON.parse(fs.readFileSync('./config.json')).cater2me.clientId;
 const userId = JSON.parse(fs.readFileSync('./config.json')).cater2me.userId;
 /* Get this from id fields of https://cater2.me/clients/users/available_profiles.json */
 const profileIds = JSON.parse(fs.readFileSync('./config.json')).cater2me.profileIds;
+const logger = log4js.getLogger('cater2me');
 
 const cater2meOrdersUrl = `https://cater2.me/clients/${clientId}/calendars/orders_feed.json?cal_by_profile_ids=${encodeURIComponent(profileIds.join(','))}&cal_sort_by=order_for&cal_by_user_id=${userId}`;
 const cater2meOrderBaseUrl = `https://cater2.me/clients/${clientId}/calendars/order_details.json?order_id=`;
@@ -50,7 +52,7 @@ module.exports.Cater2MeMenu = Cater2MeMenu;
 module.exports.loadTodaysMenu = function() {
     let today = new Date();
     return new Promise((resolve, reject) => {
-        console.log('Fetching todays menu from cater2.me...');
+        logger.info('Fetching todays menu from cater2.me...');
         request.get(cater2meOrdersUrl, (err, resp, body) => {
             if (err) { return reject(Error(`Error getting cater2me orders.`)); };
             if (resp.statusCode !== 200) { return reject(Error(`Error getting cater2me order: received ${resp.statusCode} status code.`)); };
