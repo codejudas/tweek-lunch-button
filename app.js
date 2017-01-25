@@ -6,7 +6,6 @@ const fs = require('fs');
 const bodyParser = require('body-parser');
 const twilio = require('twilio');
 const cron = require('cron');
-const morgan = require('morgan');
 const log4js = require('log4js');
 
 const slack = require('./slack.js');
@@ -79,6 +78,13 @@ let app = express();
 
 app.use(bodyParser.json()); // support json POST bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support form encoded POST bodies
+
+/* Allow CORS */
+app.all('/', function(req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "X-Requested-With");
+    next();
+});
 
 /* Endpoint to register a new user */
 app.post('/users', (req, res) => {
@@ -159,6 +165,20 @@ app.post('/users', (req, res) => {
 app.get('/users', (req, res) => {
     logger.info('GET /users');
     res.send(users);
+});
+
+app.post('/gcm', (req, res) => {
+    if (!req.body.User || !req.body.Token) {
+        res.status(400);
+        res.send('Must provide User and Token params');
+        return;
+    }
+
+    let user = req.body.User.toLowerCase().trim();
+    let gcmToken = req.body.Token.trim();
+
+    logger.info(`POST /gcm User: ${user} Token: ${gcmToken}`);
+    res.send('Registered GCM!');
 });
 
 /* Notify registered users lunch has arrived*/
