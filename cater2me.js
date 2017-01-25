@@ -30,6 +30,19 @@ class Cater2MeMenu {
     toString() {
         return `Cater2MeMenu { vendor: ${this.vendor}, office: ${this.office}, menuItems: ${this.menuItems.map((e) => {return e.item;}).join(', ')} }`
     }
+
+    toSlackAttachment() {
+        let menuItems = this.menuItems.map(item => `• ${item.item}`).join('\n');
+
+        return {
+            color: '#36a64f',
+            fallback: `${this.office}: ${this.vendor}`,
+            title: `${this.office}: ${this.vendor}`,
+            title_link: `https://cater2.me/clients/${clientId}/calendars/feed`,
+            text: `Here's what we've got for you today:\n${menuItems}`,
+            image_url: this.vendorImage
+        }
+    }
 }
 
 module.exports.Cater2MeMenu = Cater2MeMenu;

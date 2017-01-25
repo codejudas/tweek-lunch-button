@@ -139,7 +139,7 @@ app.post('/users', (req, res) => {
                 users[command.identity][channel] = 'https://www.slack.com/notifyme';
             } else {
               //TODO: Support android/ios alerts
-              notify.addBinding(identity, "sms", req.body.From, [], function(data) {
+              notify.addBinding(command.identity, "sms", req.body.From, [], function(data) {
                 users[identity][channel] = data;
               });
             }
@@ -170,6 +170,9 @@ app.post('/lunch', (req, res) => {
     for (var u in users) {
         console.log(`Notifying ${u}`);
         notify.notifyUserByIdentity(u, "Lunch");
+        if (users[u].slack) {
+            slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu.toSlackAttachment()]);
+        }
     }
     res.send('Notifying');
 });
