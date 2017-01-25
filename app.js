@@ -1,5 +1,6 @@
 'use strict';
 
+const Promise = require('es6-promise');
 const express = require('express');
 const https = require('https');
 const fs = require('fs');
@@ -7,6 +8,7 @@ const bodyParser = require('body-parser');
 const twilio = require('twilio');
 const cron = require('cron');
 const log4js = require('log4js');
+const util = require('util');
 
 const slack = require('./slack.js');
 const notify = require('./notify.js');
@@ -15,11 +17,15 @@ const cater2me = require('./cater2me.js');
 const RegistrationCommand = require('./util.js').RegistrationCommand;
 
 const port = process.env.PORT || 5000;
-const file = './users.json';
-const config = JSON.parse(fs.readFileSync('./config.json'));
+const config = require('./config.json');
 const accountSid = config.accountSid;
 const authToken = config.authToken;
 const logger = log4js.getLogger('app');
+
+const twilioClient = new twilio(accountSid, authToken);
+
+const FILE_USERS = './users.json';
+const FILE_DISPLAYS = './displays.json';
 
 process.on('SIGTERM', () => { logger.warn('Received SIGTERM, shutting down...'); process.exit(0); });
 
@@ -37,20 +43,17 @@ let credentials = null;
 // }
 
 /* Read registered users */
-var users;
-try {
-    users = JSON.parse(fs.readFileSync(file));
-} catch (err) {
-    users = {};
-}
+let users = fs.existsSync(FILE_USERS) ? require(FILE_USERS) : {};
+let displays = fs.existsSync(FILE_DISPLAYS) ? require(FILE_DISPLAYS) : {};
+
 logger.info(`Num subscribed users ${Object.keys(users).length}`);
 
 /* Load todays menu */
-var cater2MeMenu = null;
-var cater2MeMenuLoaded = null;
+let cater2MeMenu = null;
+let cater2MeMenuLoaded = null;
 
 logger.info('Starting cater2me cron job...');
-var cater2MeCron = new cron.CronJob({
+let cater2MeCron = new cron.CronJob({
     cronTime: '0 8 * * 1-5', /* Run at 8am PST every day Mon-Fri */
     timeZone: 'America/Los_Angeles',
     start: true,
@@ -90,6 +93,7 @@ app.all('/', function(req, res, next) {
 app.post('/users', (req, res) => {
     logger.info(`POST /users From:${req.body.From} Body: ${req.body.Body}`);
 
+    let promises = [];
     let command = null;
     try {
         command = new RegistrationCommand(req.body.Body);
@@ -107,7 +111,7 @@ app.post('/users', (req, res) => {
     if (command.isUnsubscribe) {
         if (users[command.identity]) {
             /* TODO: Hit notify API to delete bindings*/
-            for (var bindType in users[identity]) {
+            for (let bindType in users[identity]) {
                 if (bindType != "slack" && bindType != null) {
                     notify.deleteBinding(users[identity][bindType]);
                 }
@@ -136,15 +140,21 @@ app.post('/users', (req, res) => {
         }
 
         /* Build new user object */
-        users[command.identity] = {};
+        users[command.identity] = {
+            notifications: {},
+            team: ''
+        };
         command.channels.forEach((channel) => {
             if (channel === 'slack') {
-                users[command.identity][channel] = 'https://www.slack.com/notifyme';
+                users[command.identity]['notifications'][channel] = 'https://www.slack.com/notifyme';
             } else {
-              //TODO: Support android/ios alerts
-              notify.addBinding(command.identity, "sms", req.body.From, [], function(data) {
-                users[identity][channel] = data;
-              });
+                promises.push(new Promise((resolve) => {
+                    //TODO: Support android/ios alerts
+                    notify.addBinding(command.identity, "sms", req.body.From, [], function(data) {
+                        users[command.identity]['notifications'][channel] = data;
+                        resolve();
+                    });
+                }));
             }
         });
 
@@ -155,10 +165,13 @@ app.post('/users', (req, res) => {
         `);
     }
 
-    /* Persist updated users */
-    fs.writeFile(file, JSON.stringify(users, null, 2), (err) => {
-        if (err) logger.warn('Unable to persist users...');
-    });
+    Promise.all(promises)
+        .then(() => {
+            /* Persist updated users */
+            fs.writeFile(FILE_USERS, JSON.stringify(users, null, 3), (err) => {
+                err && logger.warn('Unable to persist users: ', err);
+            });
+        });
 });
 
 /* List users */
@@ -184,14 +197,46 @@ app.post('/gcm', (req, res) => {
 /* Notify registered users lunch has arrived*/
 app.post('/lunch', (req, res) => {
     logger.info('POST /lunch');
-    for (var u in users) {
+    Object.keys(users).forEach(u => {
         logger.info(`Notifying ${u}`);
         notify.notifyUserByIdentity(u, "Lunch");
-        if (users[u].slack) {
+        if (users[u].notifications.slack) {
             slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu]);
         }
-    }
+
+        Object.keys(displays).forEach(d => {
+            twilioClient.messages.create({
+                messagingServiceSid: config.copilotServiceSid,
+                body: util.format('%s:lunch', d.toLowerCase()),
+                to: "+14843348260"
+            });
+        });
+    });
     res.send('Notifying');
+});
+
+
+app.post('/display', (req, res) => {
+    logger.info('POST /display');
+    const newRoom = req.body.newRoom;
+    const oldRoom = req.body.oldRoom;
+
+    console.log(req.body)
+
+    if (!newRoom) {
+        res.send('Error');
+    }
+
+    displays[newRoom] = {};
+    if (oldRoom) {
+        delete displays[oldRoom];
+    }
+
+    fs.writeFile(FILE_DISPLAYS, JSON.stringify(displays, null, 2), (err) => {
+        err && logger.warn('Unable to persist displays: ', err);
+    });
+
+    res.send("done")
 });
 
 if (credentials) {
