@@ -150,7 +150,7 @@ app.post('/users', (req, res) => {
     }
 
     /* Persist updated users */
-    fs.writeFile(file, JSON.stringify(users), (err) => {
+    fs.writeFile(file, JSON.stringify(users, null, 2), (err) => {
         if (err) logger.warn('Unable to persist users...');
     });
 });
