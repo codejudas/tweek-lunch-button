@@ -168,7 +168,7 @@ app.post('/lunch', (req, res) => {
         logger.info(`Notifying ${u}`);
         notify.notifyUserByIdentity(u, "Lunch");
         if (users[u].slack) {
-            slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu.toSlackAttachment()]);
+            slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu]);
         }
     }
     res.send('Notifying');

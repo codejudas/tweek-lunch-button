@@ -10,7 +10,8 @@ const logger = log4js.getLogger('slack');
 
 module.exports.notifyUser = function(username, header, attachments) {
     attachments = attachments || [];
-    attachments = attachments.filter(e => !!e);
+    attachments = attachments.filter(e => !!e)
+                             .map(e => !!e.toSlackAttachment ? e.toSlackAttachment() : e);
 
     logger.info(`Slacking ${username} '${header}' and ${attachments.length} attachments`);
     const payload = {
