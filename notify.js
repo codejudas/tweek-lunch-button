@@ -40,7 +40,7 @@ module.exports.notifyUserByIdentity = function(identity, message) {
       from: copilotServiceSid
     })
   }).then(function(response) {
-    console.log(response);
+    console.log(`Notified user by identity: ${identity}`);
   }).catch(function(error) {
     console.log(error);
   });
@@ -54,7 +54,7 @@ module.exports.notifyUserByTag = function(tags, message) {
       from: copilotServiceSid
     })
   }).then(function(response) {
-    console.log(response);
+    console.log(`Noftified group by tags ${tags}`);
   }).catch(function(error) {
     console.log(error);
   });

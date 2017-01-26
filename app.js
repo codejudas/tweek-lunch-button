@@ -7,6 +7,8 @@ const bodyParser = require('body-parser');
 const twilio = require('twilio');
 const cron = require('cron');
 const log4js = require('log4js');
+const lodash = require('lodash');
+const sleep = require('sleep');
 
 const slack = require('./slack.js');
 const notify = require('./notify.js');
@@ -20,6 +22,7 @@ const config = JSON.parse(fs.readFileSync('./config.json'));
 const accountSid = config.accountSid;
 const authToken = config.authToken;
 const logger = log4js.getLogger('app');
+const numberToNotifyAtOnce = 2;
 
 process.on('SIGTERM', () => { logger.warn('Received SIGTERM, shutting down...'); process.exit(0); });
 
@@ -205,15 +208,43 @@ app.post('/gcm', (req, res) => {
 /* Notify registered users lunch has arrived*/
 app.post('/lunch', (req, res) => {
     logger.info('POST /lunch');
+
     for (var u in users) {
-        logger.info(`Notifying ${u}`);
-        notify.notifyUserByIdentity(u, "Lunch");
-        if (users[u].slack) {
-            slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu]);
-        }
+        if (users[u].hasOwnProperty('slack')) {
+                slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu]);
+            }
+        if (users[u].hasOwnProperty('sms')) {
+            notify.notifyUserByIdentity(u, `*Lunch has arrived!* Vendor: ${cater2MeMenu.vendor}`);
+         }
     }
+
     res.send('Notifying');
-});
+
+    /* //don't alert everyone at once 
+    var userArray = [];
+    var shuffledUsers = [];
+    for (var u in users) {
+        userArray.push(u);
+    }
+
+    shuffledUsers = lodash.shuffle(userArray);
+    var pos = 0;
+    while (pos < shuffledUsers.length) {
+        for (var i = pos; i < (pos + numberToNotifyAtOnce); i++) {
+            var userIdentity = shuffledUsers[i];
+            console.log(userIdentity);
+            console.log(users[userIdentity]);
+            if (users[userIdentity].hasOwnProperty('slack')) {
+                slack.notifyUser(userIdentity, '*Lunch has arrived!*', [cater2MeMenu]);
+            }
+            if (users[userIdentity].hasOwnProperty('sms')) {
+                notify.notifyUserByIdentity(userIdentity, `*Lunch has arrived!* Vendor: ${cater2MeMenu.Vendor}`);
+            }
+        }
+        pos = pos + numberToNotifyAtOnce;
+        sleep.sleep(10);
+    } */
+}); 
 
 if (credentials) {
     app = https.createServer(credentials, app);
