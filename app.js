@@ -91,7 +91,6 @@ app.all('*', function(req, res, next) {
 /* Endpoint to register a new user */
 app.post('/users', (req, res) => {
     logger.info(`POST /users From:${req.body.From} Body: ${req.body.Body}`);
-
     let command = null;
     try {
         command = new RegistrationCommand(req.body.Body);
@@ -109,12 +108,15 @@ app.post('/users', (req, res) => {
     if (command.isUnsubscribe) {
         if (users[command.identity]) {
             /* TODO: Hit notify API to delete bindings*/
-            for (var bindType in users[identity]) {
+            for (var bindType in users[command.identity]) {
                 if (bindType != "slack" && bindType != null) {
-                    notify.deleteBinding(users[identity][bindType]);
+                    notify.deleteBinding(users[command.identity][bindType]);
                 }
             }
-            delete users[identity];
+            delete users[command.identity];
+
+            //persist to user file 
+            persistUsers();
         }
         res.send(`
             <Response>
@@ -139,14 +141,24 @@ app.post('/users', (req, res) => {
 
         /* Build new user object */
         users[command.identity] = {};
+        //var promises = [command.channels.length];
+        var promises = [];
         command.channels.forEach((channel) => {
             if (channel === 'slack') {
-                users[command.identity][channel] = 'https://www.slack.com/notifyme';
+                promises.push(users[command.identity][channel] = 'https://www.slack.com/notifyme');
             } else {
-              //TODO: Support android/ios alerts
-              notify.addBinding(command.identity, "sms", req.body.From, [], function(data) {
-                users[identity][channel] = data;
-              });
+                //TODO: Support android/ios alerts
+                 promises.push(new Promise((resolve, reject) => {
+                    notify.addBinding(command.identity, "sms", req.body.From, []).then(
+                    (res) => {
+                        users[command.identity][channel] = res;
+                        return resolve(res);
+                    },
+                    (err) => {
+                        logger.warn(`Failed to add Binding for user ${command.identity}: ${err}`);
+                        return reject(err);
+                    });
+                }));
             }
         });
 
@@ -155,10 +167,14 @@ app.post('/users', (req, res) => {
                 <Message>${msg}\nWell let you know when lunch arrives.</Message>
             </Response>
         `);
-    }
 
-    /* Persist updated users */
-    persistUsers();
+        Promise.all(promises).then(function () {
+            /* Persist updated users */
+            persistUsers();
+        }).catch(function () {
+            logger.warn("Failed to register user's channels.");
+        });
+    }
 });
 
 /* List users */
