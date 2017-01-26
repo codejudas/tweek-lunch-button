@@ -61,7 +61,7 @@ module.exports.notifyUserByTag = function(tags, message) {
 };
 
 module.exports.addBinding = function(identity, bindType, bindAddress, tag, callback) {
-    console.log(`creating biding for ${identity}, ${bindType}`);
+    console.log(`creating binding for ${identity}, ${bindType}`);
     service.bindings.create({
         endpoint: `${identity}:${bindType}`,
         identity: identity,

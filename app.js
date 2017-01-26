@@ -80,9 +80,11 @@ app.use(bodyParser.json()); // support json POST bodies
 app.use(bodyParser.urlencoded({ extended: true })); // support form encoded POST bodies
 
 /* Allow CORS */
-app.all('/', function(req, res, next) {
+app.all('*', function(req, res, next) {
+    logger.info('Headers added!');
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "X-Requested-With");
+    res.header("Access-Control-Allow-Methods", "OPTONS, GET, HEAD, PUT, POST, DELETE");
     next();
 });
 
@@ -156,9 +158,7 @@ app.post('/users', (req, res) => {
     }
 
     /* Persist updated users */
-    fs.writeFile(file, JSON.stringify(users, null, 2), (err) => {
-        if (err) logger.warn('Unable to persist users...');
-    });
+    persistUsers();
 });
 
 /* List users */
@@ -167,6 +167,7 @@ app.get('/users', (req, res) => {
     res.send(users);
 });
 
+/* Register a chrome extension GCM */
 app.post('/gcm', (req, res) => {
     if (!req.body.User || !req.body.Token) {
         res.status(400);
@@ -178,7 +179,43 @@ app.post('/gcm', (req, res) => {
     let gcmToken = req.body.Token.trim();
 
     logger.info(`POST /gcm User: ${user} Token: ${gcmToken}`);
+    if (!users[user]) {
+        logger.info(`User ${user} does not exist, creating..`);
+        users[user] = {};
+    }
+    notify.addBinding(user, 'gcm', gcmToken, [], function(bindSid) {
+        if (!bindSid) { 
+            logger.warn(`Failed to create gcm binding for ${user}`); 
+            return;
+        }
+
+        users[user]['chrome'] = bindSid;
+        persistUsers();
+    });
+
+    res.status(200);
     res.send('Registered GCM!');
+});
+
+/* Unsubscribe a chrome extension GCM */
+app.delete('/gcm', (req, res) => {
+    if (!req.body.User) {
+        res.status(400);
+        res.send('Must provide User param');
+        logger.info('Must provide User to delete GCM');
+        return;
+    }
+
+    let user = req.body.User.toLowerCase().trim();
+    logger.info(`DELETE /gcm User: ${user}`);
+    if (users[user] && users[user]['chrome']) {
+        notify.deleteBinding(users[user]['chrome']);
+        delete users[user]['chrome'];
+        persistUsers();
+    }
+
+    res.status(204);
+    res.send();
 });
 
 /* Notify registered users lunch has arrived*/
@@ -209,3 +246,17 @@ Promise.all([cater2MeMenuLoaded])
         logger.error('Failed to initialize web server'); 
         throw err;
     });
+
+
+function persistUsers() {
+    return new Promise((reject, resolve) => {
+        fs.writeFile(file, JSON.stringify(users, null, 2), (err) => {
+            if (err) {
+                logger.warn(`Unable to persist users...`);
+                return reject(err);
+            } else {
+                return resolve();
+            }
+        });
+    });
+}
