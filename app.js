@@ -199,15 +199,17 @@ app.post('/gcm', (req, res) => {
         logger.info(`User ${user} does not exist, creating..`);
         users[user] = {};
     }
-    notify.addBinding(user, 'gcm', gcmToken, [], function(bindSid) {
-        if (!bindSid) { 
+    notify.addBinding(user, 'gcm', gcmToken, [])
+        .then(function(bindSid) {
+            if (!bindSid) { 
+                logger.warn(`Failed to create gcm binding for ${user}`); 
+                return;
+            }
+            users[user]['chrome'] = bindSid;
+            persistUsers();
+        }, function(err) {
             logger.warn(`Failed to create gcm binding for ${user}`); 
-            return;
-        }
-
-        users[user]['chrome'] = bindSid;
-        persistUsers();
-    });
+        });
 
     res.status(200);
     res.send('Registered GCM!');
