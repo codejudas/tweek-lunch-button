@@ -146,6 +146,7 @@ app.post('/users', (req, res) => {
         /* Build new user object */
         users[command.identity] = {
             notifications: {},
+            phoneNumber: req.body.From,
             team: ''
         };
         command.channels.forEach((channel) => {
