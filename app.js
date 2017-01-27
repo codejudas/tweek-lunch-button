@@ -21,8 +21,8 @@ const config = require('./config.json');
 const accountSid = config.accountSid;
 const authToken = config.authToken;
 const logger = log4js.getLogger('app');
-const numberToNotifyAtOnce = 2;
-const notifyInterval = 10; // seconds
+const numberToNotifyAtOnce = 30;
+const notifyInterval = 180; // seconds
 
 const twilioClient = new twilio(accountSid, authToken);
 
