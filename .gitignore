@@ -5,3 +5,5 @@ users.json
 config.json
 app.log
 ssl
+.idea
+displays.json
