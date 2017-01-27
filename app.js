@@ -188,6 +188,18 @@ app.get('/users', (req, res) => {
     res.send(users);
 });
 
+/* Get single user */
+app.get('/users/:identity', (req, res) => {
+    logger.info(`GET /users/${req.params.identity}`);
+    let user = users[req.params.identity];
+    if (!user) {
+        res.status(404);
+        res.send(`User ${req.params.identity} is not registered`);
+    } else {
+        res.send(user);
+    }
+});
+
 /* Register a chrome extension GCM */
 app.post('/gcm', (req, res) => {
     if (!req.body.User || !req.body.Token) {
