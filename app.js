@@ -249,6 +249,19 @@ app.post('/lunch', (req, res) => {
     res.send('Notifying');
 });
 
+/* Get todays menu */
+app.get('/menu', (req, res) => {
+    logger.info('GET /menu');
+    if (!cater2MeMenu) {
+        res.status(503);
+        res.send('Today\'s menu is currently unavailable, try again later.');
+        return;
+    }
+
+    res.status(200);
+    res.send(cater2MeMenu);
+});
+
 if (credentials) {
     app = https.createServer(credentials, app);
 }
