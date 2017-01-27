@@ -263,6 +263,11 @@ app.post('/lunch', (req, res) => {
 
     //don't alert everyone at once 
     let shuffledUserIdentities = lodash.shuffle(Object.keys(users));
+
+    /* DEMO: Only notify us */
+    shuffledUserIdentities = shuffledUserIdentities.filter(identity => ['jlaver', 'efossier', 'ktalebian', 'khoxworth'].includes(identity));
+
+    logger.info(`Shuffled users: ${shuffledUserIdentities}`);
     batchNotify(shuffledUserIdentities);
 }); 
 
@@ -319,8 +324,8 @@ Promise.all([cater2MeMenuLoaded])
 
 function batchNotify(shuffledUsers, pos) {
     pos = pos || 0;
-    console.log(`Notifying users ${pos} - ${pos + numberToNotifyAtOnce}`);
     let usersToNotify = shuffledUsers.slice(pos, pos + numberToNotifyAtOnce);
+    logger.info(`Notifying users ${pos} - ${pos + numberToNotifyAtOnce} : ${usersToNotify}`);
     notifyUsers(usersToNotify);
     pos = pos + numberToNotifyAtOnce;
     if (pos < shuffledUsers.length) {
@@ -330,6 +335,7 @@ function batchNotify(shuffledUsers, pos) {
 
 function notifyUsers(userIdentities) {
     userIdentities.forEach(u => {
+        logger.info(`Notifying user ${u}`);
         if (users[u]['notifications'].hasOwnProperty('slack')) {
             slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu]);
         }
