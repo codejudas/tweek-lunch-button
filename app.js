@@ -285,13 +285,13 @@ app.get('/menu', (req, res) => {
 });
 
 app.get('/chrome-extension', (req, res) => {
-    if (!fs.exists('./tweek-lunch-button-chrome.crx')) {
+    if (!fs.existsSync('./tweek-lunch-button.crx')) {
         res.status('503');
         res.send('Extension not available, try again later');
         return;
     }
 
-    res.sendFile('./tweek-lunch-button-chrome.crx');
+    res.sendFile(__dirname + '/tweek-lunch-button.crx');
 });
 
 
