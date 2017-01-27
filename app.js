@@ -86,7 +86,6 @@ app.use(bodyParser.urlencoded({ extended: true })); // support form encoded POST
 
 /* Allow CORS */
 app.all('*', function(req, res, next) {
-    logger.info('Headers added!');
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "X-Requested-With");
     res.header("Access-Control-Allow-Methods", "OPTONS, GET, HEAD, PUT, POST, DELETE");
@@ -294,7 +293,6 @@ app.get('/chrome-extension', (req, res) => {
 
     res.header('Content-Disposition', 'inline; filename="tweek-lunch-button.crx"');
     res.sendFile(__dirname + '/tweek-lunch-button.crx');
-    res.send('<html><center><h1>Thanks for downloading the chrome extension!</h1></center></html>');
 });
 
 
