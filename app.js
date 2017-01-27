@@ -284,6 +284,16 @@ app.get('/menu', (req, res) => {
     res.send(cater2MeMenu);
 });
 
+app.get('/chrome-extension', (req, res) => {
+    if (!fs.exists('./tweek-lunch-button-chrome.crx')) {
+        res.status('503');
+        res.send('Extension not available, try again later');
+        return;
+    }
+
+    res.sendFile('./tweek-lunch-button-chrome.crx');
+});
+
 
 app.post('/display', (req, res) => {
     logger.info('POST /display');
