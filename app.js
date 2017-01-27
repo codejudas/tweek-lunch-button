@@ -1,6 +1,5 @@
 'use strict';
 
-const Promise = require('es6-promise');
 const express = require('express');
 const https = require('https');
 const fs = require('fs');
@@ -92,7 +91,6 @@ app.all('/', function(req, res, next) {
 /* Endpoint to register a new user */
 app.post('/users', (req, res) => {
     logger.info(`POST /users From:${req.body.From} Body: ${req.body.Body}`);
-
     let promises = [];
     let command = null;
     try {
@@ -110,13 +108,17 @@ app.post('/users', (req, res) => {
 
     if (command.isUnsubscribe) {
         if (users[command.identity]) {
-            /* TODO: Hit notify API to delete bindings*/
-            for (let bindType in users[identity]) {
+            for (var bindType in users[command.identity]) {
                 if (bindType != "slack" && bindType != null) {
-                    notify.deleteBinding(users[identity][bindType]);
+                    notify.deleteBinding(users[command.identity][bindType]);
                 }
             }
-            delete users[identity];
+            delete users[command.identity];
+
+            //persist to user file 
+            fs.writeFile(file, JSON.stringify(users, null, 2), (err) => {
+                if (err) logger.warn('Unable to persist users...');
+            });
         }
         res.send(`
             <Response>
@@ -148,12 +150,17 @@ app.post('/users', (req, res) => {
             if (channel === 'slack') {
                 users[command.identity]['notifications'][channel] = 'https://www.slack.com/notifyme';
             } else {
-                promises.push(new Promise((resolve) => {
-                    //TODO: Support android/ios alerts
-                    notify.addBinding(command.identity, "sms", req.body.From, [], function(data) {
-                        users[command.identity]['notifications'][channel] = data;
-                        resolve();
-                    });
+                //TODO: Support android/ios alerts
+                promises.push(new Promise((resolve, reject) => {
+                    notify.addBinding(command.identity, "sms", req.body.From, []).then(
+                        (res) => {
+                            users[command.identity][channel] = res;
+                            return resolve(res);
+                        },
+                        (err) => {
+                            logger.warn(`Failed to add Binding for user ${command.identity}: ${err}`);
+                            return reject(err);
+                        });
                 }));
             }
         });
@@ -171,6 +178,8 @@ app.post('/users', (req, res) => {
             fs.writeFile(FILE_USERS, JSON.stringify(users, null, 3), (err) => {
                 err && logger.warn('Unable to persist users: ', err);
             });
+        }).catch(function () {
+            console.log("Promise Rejected");
         });
 });
 
@@ -198,18 +207,19 @@ app.post('/gcm', (req, res) => {
 app.post('/lunch', (req, res) => {
     logger.info('POST /lunch');
     Object.keys(users).forEach(u => {
-        logger.info(`Notifying ${u}`);
+        logger.info(`Notifying user ${u}`);
         notify.notifyUserByIdentity(u, "Lunch");
         if (users[u].notifications.slack) {
             slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu]);
         }
+    });
 
-        Object.keys(displays).forEach(d => {
-            twilioClient.messages.create({
-                messagingServiceSid: config.copilotServiceSid,
-                body: util.format('%s:lunch', d.toLowerCase()),
-                to: "+14843348260"
-            });
+    Object.keys(displays).forEach(d => {
+        logger.info(`Notifying display ${d}`)
+        twilioClient.messages.create({
+            messagingServiceSid: config.copilotServiceSid,
+            body: util.format('%s:lunch', d.toLowerCase()),
+            to: "+14843348260"
         });
     });
     res.send('Notifying');
@@ -220,8 +230,6 @@ app.post('/display', (req, res) => {
     logger.info('POST /display');
     const newRoom = req.body.newRoom;
     const oldRoom = req.body.oldRoom;
-
-    console.log(req.body)
 
     if (!newRoom) {
         res.send('Error');

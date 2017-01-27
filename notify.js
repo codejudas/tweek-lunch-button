@@ -40,7 +40,7 @@ module.exports.notifyUserByIdentity = function(identity, message) {
       from: copilotServiceSid
     })
   }).then(function(response) {
-    console.log(response);
+    //console.log(response);
   }).catch(function(error) {
     console.log(error);
   });
@@ -60,23 +60,25 @@ module.exports.notifyUserByTag = function(tags, message) {
   });
 };
 
-module.exports.addBinding = function(identity, bindType, bindAddress, tag, callback) {
-    console.log(`creating biding for ${identity}, ${bindType}`);
-    service.bindings.create({
-        endpoint: `${identity}:${bindType}`,
-        identity: identity,
-        bindingType: bindType,
-        address: bindAddress,
-        tag: tag
-    }).then(function(response) {
+module.exports.addBinding = function(identity, bindType, bindAddress, tag) {
+	return new Promise((resolve, reject) => {
+      console.log(`creating biding for ${identity}, ${bindType}`);
+      service.bindings.create({
+          endpoint: `${identity}:${bindType}`,
+          identity: identity,
+          bindingType: bindType,
+          address: bindAddress,
+          tag: tag
+      }).then(function(response) {
         //get binding sid from response
         var bindSid = response.sid;
         console.log(bindSid);
-        callback(bindSid);
-    }).catch(function(error) {
+        resolve(bindSid);
+      }).catch(function(error) {
         console.log(error);
-        callback(null);
-    });
+        reject(error);
+      });
+	});
 }
 
 module.exports.deleteBinding = function(bindSid) {
