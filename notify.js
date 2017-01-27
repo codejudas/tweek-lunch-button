@@ -7,6 +7,7 @@ const express = require('express');
 const fs = require('fs');
 const bodyParser = require('body-parser');
 const twilio = require('twilio');
+const log4js = require('log4js');
 
 const config = JSON.parse(fs.readFileSync('./config.json'));
 const accountSid = config.accountSid;
@@ -14,6 +15,7 @@ const authToken = config.authToken;
 const notifyServiceSid = config.notifyServiceSid;
 const copilotServiceSid = config.copilotServiceSid;
 
+var logger = log4js.getLogger('notify');
 var client = new twilio(accountSid, authToken);
 var service = client.notify.v1.services(notifyServiceSid);
 
@@ -85,9 +87,10 @@ module.exports.deleteBinding = function(bindSid) {
     console.log(`deleteBindind ${bindSid}`);
     service.bindings(bindSid).remove()
         .then(function(response) {
-            console.log(response);
-        }).catch(function(error) {
-        console.log(error);
+            logger.info('Response: %s', response);
+        })
+        .catch(function(error) {
+            logger.info('Error: %s', error);
     });
 }
 
