@@ -8,6 +8,8 @@ const twilio = require('twilio');
 const cron = require('cron');
 const log4js = require('log4js');
 const util = require('util');
+const lodash = require('lodash');
+const sleep = require('sleep');
 
 const slack = require('./slack.js');
 const notify = require('./notify.js');
@@ -20,6 +22,7 @@ const config = require('./config.json');
 const accountSid = config.accountSid;
 const authToken = config.authToken;
 const logger = log4js.getLogger('app');
+const numberToNotifyAtOnce = 2;
 
 const twilioClient = new twilio(accountSid, authToken);
 
@@ -154,7 +157,7 @@ app.post('/users', (req, res) => {
                 promises.push(new Promise((resolve, reject) => {
                     notify.addBinding(command.identity, "sms", req.body.From, []).then(
                         (res) => {
-                            users[command.identity][channel] = res;
+                            users[command.identity]['notifications'][channel] = res;
                             return resolve(res);
                         },
                         (err) => {
@@ -206,13 +209,6 @@ app.post('/gcm', (req, res) => {
 /* Notify registered users lunch has arrived*/
 app.post('/lunch', (req, res) => {
     logger.info('POST /lunch');
-    Object.keys(users).forEach(u => {
-        logger.info(`Notifying user ${u}`);
-        notify.notifyUserByIdentity(u, "Lunch");
-        if (users[u].notifications.slack) {
-            slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu]);
-        }
-    });
 
     Object.keys(displays).forEach(d => {
         logger.info(`Notifying display ${d}`)
@@ -222,8 +218,43 @@ app.post('/lunch', (req, res) => {
             to: "+14843348260"
         });
     });
+
+    for (var u in users) {
+        if (users[u]['notifications'].hasOwnProperty('slack')) {
+                slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu]);
+            }
+        if (users[u]['notifications'].hasOwnProperty('sms')) {
+            notify.notifyUserByIdentity(u, `*Lunch has arrived!* Vendor: ${cater2MeMenu.vendor}`);
+         }
+    }
+
     res.send('Notifying');
-});
+
+    /* //don't alert everyone at once 
+    var userArray = [];
+    var shuffledUsers = [];
+    for (var u in users) {
+        userArray.push(u);
+    }
+
+    shuffledUsers = lodash.shuffle(userArray);
+    var pos = 0;
+    while (pos < shuffledUsers.length) {
+        for (var i = pos; i < (pos + numberToNotifyAtOnce); i++) {
+            var userIdentity = shuffledUsers[i];
+            console.log(userIdentity);
+            console.log(users[userIdentity]);
+            if (users[userIdentity].hasOwnProperty('slack')) {
+                slack.notifyUser(userIdentity, '*Lunch has arrived!*', [cater2MeMenu]);
+            }
+            if (users[userIdentity].hasOwnProperty('sms')) {
+                notify.notifyUserByIdentity(userIdentity, `*Lunch has arrived!* Vendor: ${cater2MeMenu.Vendor}`);
+            }
+        }
+        pos = pos + numberToNotifyAtOnce;
+        sleep.sleep(10);
+    } */
+}); 
 
 
 app.post('/display', (req, res) => {
