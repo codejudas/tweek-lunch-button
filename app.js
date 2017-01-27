@@ -263,6 +263,10 @@ app.post('/lunch', (req, res) => {
 
     //don't alert everyone at once 
     let shuffledUserIdentities = lodash.shuffle(Object.keys(users));
+
+    /* DEMO: Only notify us */
+    shuffledUserIdentities = shuffledUserIdentities.filter(identity => ['jlaver', 'efossier', 'ktalebian', 'khoxworth'].includes(identity));
+
     logger.info(`Shuffled users: ${shuffledUserIdentities}`);
     batchNotify(shuffledUserIdentities);
 }); 
