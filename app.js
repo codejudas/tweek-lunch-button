@@ -141,23 +141,41 @@ app.post('/users', (req, res) => {
         let msg = `Thanks for signing up ${command.identity}. You're signed up to receive notifications on ${command.channels.join(', ')}.`;
         if (users[command.identity]) {
             msg = `Looks like you are already registered ${command.identity}.\nWe've updated your notification preferences to ${command.channels.join(', ')}.`;
+        } else {
+            users[command.identity] = {
+                notifications: {},
+                phoneNumber: req.body.From,
+                team: ''
+            }
         }
 
-        /* Build new user object */
-        users[command.identity] = {
-            notifications: {},
-            phoneNumber: req.body.From,
-            team: ''
-        };
+        let curUser = users[command.identity];
+
+        /* Filter disabled channels */
+        Object.keys(curUser.notifications).forEach(function(channelType) {
+            if (!command.channels.includes(channelType)) {
+                if (curUser['notifications'][channelType].startsWith('BS')) {
+                    notify.deleteBinding(curUser['notifications'][channelType]);
+                }
+                delete curUser['notifications'][channelType];
+            }
+        })
+
+        /* If user changed phone number then need to redo the sms binding */
+        if (curUser.phoneNumber !== req.body.From && curUser['notifications']['sms']) {
+            notify.deleteBinding(curUser['notifications']['sms']);
+            delete curUser['notification']['sms'];
+        }
+
         command.channels.forEach((channel) => {
             if (channel === 'slack') {
-                users[command.identity]['notifications'][channel] = 'https://www.slack.com/notifyme';
-            } else if (channel === 'sms') {
+                curUser['notifications'][channel] = 'https://www.slack.com/notifyme';
+            } else if (channel === 'sms' && !curUser['notifications']['sms']) {
                 //TODO: Support android/ios alerts
                 promises.push(new Promise((resolve, reject) => {
                     notify.addBinding(command.identity, "sms", req.body.From, []).then(
                         (res) => {
-                            users[command.identity]['notifications'][channel] = res;
+                            curUser['notifications'][channel] = res;
                             return resolve(res);
                         },
                         (err) => {
