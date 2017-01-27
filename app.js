@@ -292,7 +292,9 @@ app.get('/chrome-extension', (req, res) => {
         return;
     }
 
+    res.header('Content-Disposition', 'inline; filename="tweek-lunch-button.crx"');
     res.sendFile(__dirname + '/tweek-lunch-button.crx');
+    res.send('<html><center><h1>Thanks for downloading the chrome extension!</h1></center></html>');
 });
 
 
