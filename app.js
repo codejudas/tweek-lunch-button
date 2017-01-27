@@ -285,6 +285,7 @@ app.get('/menu', (req, res) => {
 });
 
 app.get('/chrome-extension', (req, res) => {
+    logger.info('GET /chrome-extension');
     if (!fs.existsSync('./tweek-lunch-button.crx')) {
         res.status('503');
         res.send('Extension not available, try again later');
