@@ -9,7 +9,6 @@ const cron = require('cron');
 const log4js = require('log4js');
 const util = require('util');
 const lodash = require('lodash');
-const sleep = require('sleep');
 
 const slack = require('./slack.js');
 const notify = require('./notify.js');
@@ -23,6 +22,7 @@ const accountSid = config.accountSid;
 const authToken = config.authToken;
 const logger = log4js.getLogger('app');
 const numberToNotifyAtOnce = 2;
+const notifyInterval = 10; // seconds
 
 const twilioClient = new twilio(accountSid, authToken);
 
@@ -203,7 +203,10 @@ app.post('/gcm', (req, res) => {
     logger.info(`POST /gcm User: ${user} Token: ${gcmToken}`);
     if (!users[user]) {
         logger.info(`User ${user} does not exist, creating..`);
-        users[user] = {};
+        users[user] = {
+            notifications: {},
+            team: ''
+        };
     }
     notify.addBinding(user, 'gcm', gcmToken, [])
         .then(function(bindSid) {
@@ -211,7 +214,7 @@ app.post('/gcm', (req, res) => {
                 logger.warn(`Failed to create gcm binding for ${user}`); 
                 return;
             }
-            users[user]['chrome'] = bindSid;
+            users[user]['notifications']['chrome'] = bindSid;
             persistUsers();
         }, function(err) {
             logger.warn(`Failed to create gcm binding for ${user}`); 
@@ -232,9 +235,9 @@ app.delete('/gcm', (req, res) => {
 
     let user = req.body.User.toLowerCase().trim();
     logger.info(`DELETE /gcm User: ${user}`);
-    if (users[user] && users[user]['chrome']) {
-        notify.deleteBinding(users[user]['chrome']);
-        delete users[user]['chrome'];
+    if (users[user] && users[user]['notifications']['chrome']) {
+        notify.deleteBinding(users[user]['notifications']['chrome']);
+        delete users[user]['notifications']['chrome'];
         persistUsers();
     }
 
@@ -255,41 +258,12 @@ app.post('/lunch', (req, res) => {
         });
     });
 
-    for (var u in users) {
-        if (users[u]['notifications'].hasOwnProperty('slack')) {
-                slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu]);
-            }
-        if (users[u]['notifications'].hasOwnProperty('sms')) {
-            notify.notifyUserByIdentity(u, `*Lunch has arrived!* Vendor: ${cater2MeMenu.vendor}`);
-         }
-    }
 
     res.send('Notifying');
 
-    /* //don't alert everyone at once 
-    var userArray = [];
-    var shuffledUsers = [];
-    for (var u in users) {
-        userArray.push(u);
-    }
-
-    shuffledUsers = lodash.shuffle(userArray);
-    var pos = 0;
-    while (pos < shuffledUsers.length) {
-        for (var i = pos; i < (pos + numberToNotifyAtOnce); i++) {
-            var userIdentity = shuffledUsers[i];
-            console.log(userIdentity);
-            console.log(users[userIdentity]);
-            if (users[userIdentity].hasOwnProperty('slack')) {
-                slack.notifyUser(userIdentity, '*Lunch has arrived!*', [cater2MeMenu]);
-            }
-            if (users[userIdentity].hasOwnProperty('sms')) {
-                notify.notifyUserByIdentity(userIdentity, `*Lunch has arrived!* Vendor: ${cater2MeMenu.Vendor}`);
-            }
-        }
-        pos = pos + numberToNotifyAtOnce;
-        sleep.sleep(10);
-    } */
+    //don't alert everyone at once 
+    let shuffledUserIdentities = lodash.shuffle(Object.keys(users));
+    batchNotify(shuffledUsersIdentities);
 }); 
 
 /* Get todays menu */
@@ -343,6 +317,27 @@ Promise.all([cater2MeMenuLoaded])
         throw err;
     });
 
+function batchNotify(shuffledUsers, pos) {
+    pos = pos || 0;
+    console.log(`Notifying users ${pos} - ${pos + numberToNotifyAtOnce}`);
+    let usersToNotify = shuffledUsers.slice(pos, pos + numberToNotifyAtOnce);
+    notifyUsers(usersToNotify);
+    pos = pos + numberToNotifyAtOnce;
+    if (pos < shuffledUsers.length) {
+        setTimeout(batchNotify, notifyInterval * 1000, shuffledUsers, pos);
+    }
+}
+
+function notifyUsers(userIdentities) {
+    userIdentities.forEach(u => {
+        if (users[u]['notifications'].hasOwnProperty('slack')) {
+            slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu]);
+        }
+        if (users[u]['notifications'].hasOwnProperty('sms') || users[u]['notifications'].hasOwnProperty('chrome')) {
+            notify.notifyUserByIdentity(u, `*Lunch has arrived!* Vendor: ${cater2MeMenu.vendor}`);
+        }
+    });
+}
 
 function persistUsers() {
     return new Promise((reject, resolve) => {
