@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports.RegistrationCommand = class RegistrationCommand {
-    static get VALID_CHANNELS() { return ['sms', 'slack', 'android', 'ios']; }
+    static get VALID_CHANNELS() { return ['sms', 'slack']; }
 
     /* 
      * Expects a text formatted as follows:

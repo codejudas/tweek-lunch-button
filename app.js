@@ -149,7 +149,7 @@ app.post('/users', (req, res) => {
         command.channels.forEach((channel) => {
             if (channel === 'slack') {
                 promises.push(users[command.identity][channel] = 'https://www.slack.com/notifyme');
-            } else {
+            } else if (channel === 'sms') {
                 //TODO: Support android/ios alerts
                  promises.push(new Promise((resolve, reject) => {
                     notify.addBinding(command.identity, "sms", req.body.From, []).then(
