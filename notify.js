@@ -42,7 +42,7 @@ module.exports.notifyUserByIdentity = function(identity, message) {
       from: copilotServiceSid
     })
   }).then(function(response) {
-    console.log(`Notified user by identity: ${identity}`);
+    logger.info(`Notified user by identity: ${identity}`);
   }).catch(function(error) {
     console.log(error);
   });
