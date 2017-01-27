@@ -7,6 +7,7 @@ const bodyParser = require('body-parser');
 const twilio = require('twilio');
 const cron = require('cron');
 const log4js = require('log4js');
+const util = require('util');
 const lodash = require('lodash');
 const sleep = require('sleep');
 
@@ -17,12 +18,16 @@ const cater2me = require('./cater2me.js');
 const RegistrationCommand = require('./util.js').RegistrationCommand;
 
 const port = process.env.PORT || 5000;
-const file = './users.json';
-const config = JSON.parse(fs.readFileSync('./config.json'));
+const config = require('./config.json');
 const accountSid = config.accountSid;
 const authToken = config.authToken;
 const logger = log4js.getLogger('app');
 const numberToNotifyAtOnce = 2;
+
+const twilioClient = new twilio(accountSid, authToken);
+
+const FILE_USERS = './users.json';
+const FILE_DISPLAYS = './displays.json';
 
 process.on('SIGTERM', () => { logger.warn('Received SIGTERM, shutting down...'); process.exit(0); });
 
@@ -40,20 +45,17 @@ let credentials = null;
 // }
 
 /* Read registered users */
-var users;
-try {
-    users = JSON.parse(fs.readFileSync(file));
-} catch (err) {
-    users = {};
-}
+let users = fs.existsSync(FILE_USERS) ? require(FILE_USERS) : {};
+let displays = fs.existsSync(FILE_DISPLAYS) ? require(FILE_DISPLAYS) : {};
+
 logger.info(`Num subscribed users ${Object.keys(users).length}`);
 
 /* Load todays menu */
-var cater2MeMenu = null;
-var cater2MeMenuLoaded = null;
+let cater2MeMenu = null;
+let cater2MeMenuLoaded = null;
 
 logger.info('Starting cater2me cron job...');
-var cater2MeCron = new cron.CronJob({
+let cater2MeCron = new cron.CronJob({
     cronTime: '0 8 * * 1-5', /* Run at 8am PST every day Mon-Fri */
     timeZone: 'America/Los_Angeles',
     start: true,
@@ -94,6 +96,7 @@ app.all('*', function(req, res, next) {
 /* Endpoint to register a new user */
 app.post('/users', (req, res) => {
     logger.info(`POST /users From:${req.body.From} Body: ${req.body.Body}`);
+    let promises = [];
     let command = null;
     try {
         command = new RegistrationCommand(req.body.Body);
@@ -110,7 +113,6 @@ app.post('/users', (req, res) => {
 
     if (command.isUnsubscribe) {
         if (users[command.identity]) {
-            /* TODO: Hit notify API to delete bindings*/
             for (var bindType in users[command.identity]) {
                 if (bindType != "slack" && bindType != null) {
                     notify.deleteBinding(users[command.identity][bindType]);
@@ -143,24 +145,25 @@ app.post('/users', (req, res) => {
         }
 
         /* Build new user object */
-        users[command.identity] = {};
-        //var promises = [command.channels.length];
-        var promises = [];
+        users[command.identity] = {
+            notifications: {},
+            team: ''
+        };
         command.channels.forEach((channel) => {
             if (channel === 'slack') {
-                promises.push(users[command.identity][channel] = 'https://www.slack.com/notifyme');
+                users[command.identity]['notifications'][channel] = 'https://www.slack.com/notifyme';
             } else if (channel === 'sms') {
                 //TODO: Support android/ios alerts
-                 promises.push(new Promise((resolve, reject) => {
+                promises.push(new Promise((resolve, reject) => {
                     notify.addBinding(command.identity, "sms", req.body.From, []).then(
-                    (res) => {
-                        users[command.identity][channel] = res;
-                        return resolve(res);
-                    },
-                    (err) => {
-                        logger.warn(`Failed to add Binding for user ${command.identity}: ${err}`);
-                        return reject(err);
-                    });
+                        (res) => {
+                            users[command.identity]['notifications'][channel] = res;
+                            return resolve(res);
+                        },
+                        (err) => {
+                            logger.warn(`Failed to add Binding for user ${command.identity}: ${err}`);
+                            return reject(err);
+                        });
                 }));
             }
         });
@@ -170,14 +173,14 @@ app.post('/users', (req, res) => {
                 <Message>${msg}\nWell let you know when lunch arrives.</Message>
             </Response>
         `);
-
-        Promise.all(promises).then(function () {
-            /* Persist updated users */
-            persistUsers();
-        }).catch(function () {
-            logger.warn("Failed to register user's channels.");
-        });
     }
+
+    Promise.all(promises).then(function () {
+        /* Persist updated users */
+        persistUsers();
+    }).catch(function () {
+        logger.warn("Failed to register user's channels.");
+    });
 });
 
 /* List users */
@@ -243,11 +246,20 @@ app.delete('/gcm', (req, res) => {
 app.post('/lunch', (req, res) => {
     logger.info('POST /lunch');
 
+    Object.keys(displays).forEach(d => {
+        logger.info(`Notifying display ${d}`)
+        twilioClient.messages.create({
+            messagingServiceSid: config.copilotServiceSid,
+            body: util.format('%s:lunch', d.toLowerCase()),
+            to: "+14843348260"
+        });
+    });
+
     for (var u in users) {
-        if (users[u].hasOwnProperty('slack')) {
+        if (users[u]['notifications'].hasOwnProperty('slack')) {
                 slack.notifyUser(u, '*Lunch has arrived!*', [cater2MeMenu]);
             }
-        if (users[u].hasOwnProperty('sms')) {
+        if (users[u]['notifications'].hasOwnProperty('sms')) {
             notify.notifyUserByIdentity(u, `*Lunch has arrived!* Vendor: ${cater2MeMenu.vendor}`);
          }
     }
@@ -293,6 +305,28 @@ app.get('/menu', (req, res) => {
     res.send(cater2MeMenu);
 });
 
+
+app.post('/display', (req, res) => {
+    logger.info('POST /display');
+    const newRoom = req.body.newRoom;
+    const oldRoom = req.body.oldRoom;
+
+    if (!newRoom) {
+        res.send('Error');
+    }
+
+    displays[newRoom] = {};
+    if (oldRoom) {
+        delete displays[oldRoom];
+    }
+
+    fs.writeFile(FILE_DISPLAYS, JSON.stringify(displays, null, 2), (err) => {
+        err && logger.warn('Unable to persist displays: ', err);
+    });
+
+    res.send("done")
+});
+
 if (credentials) {
     app = https.createServer(credentials, app);
 }
@@ -312,7 +346,7 @@ Promise.all([cater2MeMenuLoaded])
 
 function persistUsers() {
     return new Promise((reject, resolve) => {
-        fs.writeFile(file, JSON.stringify(users, null, 2), (err) => {
+        fs.writeFile(FILE_USERS, JSON.stringify(users, null, 3), (err) => {
             if (err) {
                 logger.warn(`Unable to persist users...`);
                 return reject(err);
