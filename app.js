@@ -263,7 +263,7 @@ app.post('/lunch', (req, res) => {
 
     //don't alert everyone at once 
     let shuffledUserIdentities = lodash.shuffle(Object.keys(users));
-    batchNotify(shuffledUsersIdentities);
+    batchNotify(shuffledUserIdentities);
 }); 
 
 /* Get todays menu */
