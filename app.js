@@ -166,6 +166,7 @@ app.post('/users', (req, res) => {
             notify.deleteBinding(curUser['notifications']['sms']);
             delete curUser['notification']['sms'];
         }
+        curUser.phoneNumber = req.body.From;
 
         command.channels.forEach((channel) => {
             if (channel === 'slack') {
